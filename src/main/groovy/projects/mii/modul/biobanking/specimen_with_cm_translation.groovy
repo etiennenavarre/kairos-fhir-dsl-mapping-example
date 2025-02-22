@@ -2,12 +2,13 @@ package projects.mii.modul.biobanking
 
 import de.kairos.fhir.centraxx.metamodel.AbstractIdContainer
 import de.kairos.fhir.centraxx.metamodel.IdContainerType
-import de.kairos.fhir.centraxx.metamodel.MultilingualEntry
 import de.kairos.fhir.centraxx.metamodel.PrecisionDate
 import groovy.json.JsonSlurper
 import org.hl7.fhir.r4.model.Coding
 import org.hl7.fhir.r4.model.Specimen
 
+import static de.kairos.fhir.centraxx.metamodel.Multilingual.LANGUAGE
+import static de.kairos.fhir.centraxx.metamodel.Multilingual.NAME
 import static de.kairos.fhir.centraxx.metamodel.RootEntities.abstractSample
 import static de.kairos.fhir.centraxx.metamodel.RootEntities.sample
 
@@ -18,23 +19,24 @@ import static de.kairos.fhir.centraxx.metamodel.RootEntities.sample
  * In this example SPREC codes for the sample type, and container are translated requesting the the provided concept maps per HTTP.
  * TODO: NOTE: The script was written while the corresponding FHIR profile on simplifier.net was still in draft state. Changes in the profile might require adjustments in the script.
  * @author Jonas Küttner
- * @since KAIROS-FHIR-DSL.v.1.8.0, CXX.v.3.18.1
+ * @since KAIROS-FHIR-DSL.v.1.32.0, CXX.v.2024.2.1
  */
 
 final String sampleTypeConceptMapUrl = "https://fhir.simplifier.net/MedizininformatikInitiative-ModulBiobank/ConceptMap/SPRECSampleTypeMap"
 final String longTermStorageConceptMapUrl = "https://fhir.simplifier.net/MedizininformatikInitiative-ModulBiobank/ConceptMap/SPRECLongTermStorageMap"
 specimen {
-  id = "Sample/" + context.source[sample().id()]
+
+  id = "Specimen/" + context.source[sample().id()]
 
   meta {
     profile "https://www.medizininformatik-initiative.de/fhir/ext/modul-biobank/StructureDefinition/ProfileSpecimenBioprobe"
   }
 
-  if (context.source[abstractSample().episode()]) {
+  if (context.source[abstractSample().diagnosis()]) {
     extension {
       url = "https://www.medizininformatik-initiative.de/fhir/ext/modul-biobank/StructureDefinition/ExtensionDiagnose"
       valueReference {
-        reference = "Diagnosis/" + context.source[sample().episode().id()]
+        reference = "Condition/" + context.source[sample().diagnosis().id()]
       }
     }
   }
@@ -43,7 +45,7 @@ specimen {
     extension {
       url = "https://www.medizininformatik-initiative.de/fhir/ext/modul-biobank/StructureDefinition/ExtensionVerwaltendeOrganisation"
       valueReference {
-        reference = "OrganisationUnit/" + context.source[sample().organisationUnit().id()]
+        reference = "Organization/" + context.source[sample().organisationUnit().id()]
       }
     }
   }
@@ -88,7 +90,7 @@ specimen {
 
   if (context.source[sample().parent()]) {
     parent {
-      reference = "Sample/" + context.source[sample().parent().id()]
+      reference = "Specimen/" + context.source[sample().parent().id()]
     }
   }
 
@@ -100,9 +102,7 @@ specimen {
         coding {
           system = "http://snomed.info/sct"
           code = context.source[sample().orgSample().code()]
-          display = context.source[sample().orgSample().nameMultilingualEntries()].find { final def entry ->
-            "de" == entry[MultilingualEntry.LANG]
-          }[MultilingualEntry.VALUE]
+          display = context.source[sample().orgSample().multilinguals()]?.find { it[LANGUAGE] == "de" }?.getAt(NAME)
         }
       }
     }
@@ -141,7 +141,7 @@ specimen {
         unit = context.source[sample().restAmount().unit()]
       }
       additiveReference {
-        if (context.source[sample().sprecPrimarySampleContainer()]){
+        if (context.source[sample().sprecPrimarySampleContainer()]) {
           additiveCodeableConcept {
             coding {
               system = "https://doi.org/10.1089/bio.2017.0109/type-of-primary-container"
@@ -149,7 +149,7 @@ specimen {
             }
           }
         }
-        if (context.source[sample().stockType()]){
+        if (context.source[sample().stockType()]) {
           additiveCodeableConcept {
             coding {
               system = "https://doi.org/10.1089/bio.2017.0109/type-of-primary-container"
@@ -169,18 +169,18 @@ specimen {
             }
           }
         }*/
-        /*if (context.source[sample().stockType()]) {
-          final TranslationResult sprecFixationTypeTranslationResult = translateConceptMap(context.source[sample().stockType().sprecCode()] as String, sprecFixationTypeConceptMapUrl)
-          if (sprecFixationTypeTranslationResult.code) {
-            additiveCodeableConcept {
-              system = "https://www.medizininformatik-initiative.de/fhir/ext/modul-biobank/ValueSet/additive"
-              code = sprecFixationTypeTranslationResult.code
-              display = sprecFixationTypeTranslationResult.display
-            }
+      /*if (context.source[sample().stockType()]) {
+        final TranslationResult sprecFixationTypeTranslationResult = translateConceptMap(context.source[sample().stockType().sprecCode()] as String, sprecFixationTypeConceptMapUrl)
+        if (sprecFixationTypeTranslationResult.code) {
+          additiveCodeableConcept {
+            system = "https://www.medizininformatik-initiative.de/fhir/ext/modul-biobank/ValueSet/additive"
+            code = sprecFixationTypeTranslationResult.code
+            display = sprecFixationTypeTranslationResult.display
           }
-        }*/
-      }
+        }
+      }*/
     }
+  }
   note {
     text = context.source[sample().note()] as String
   }
@@ -201,16 +201,16 @@ class TranslationResult {
   String display
   String equivalence
 
-  TranslationResult(code, display, equivalence) {
+  TranslationResult(final code, final display, final equivalence) {
     this.code = code
     this.display = display
     this.equivalence = equivalence
   }
 }
 
-private static TranslationResult translateConceptMap(String code, String queryUrl) {
-  String httpMethod = "GET"
-  URL url = new URL(queryUrl)
+private static TranslationResult translateConceptMap(final String code, final String queryUrl) {
+  final String httpMethod = "GET"
+  final URL url = new URL(queryUrl)
 
   final HttpURLConnection connection = url.openConnection() as HttpURLConnection
   connection.setRequestMethod(httpMethod)
@@ -235,8 +235,8 @@ private static TranslationResult translateConceptMap(String code, String queryUr
 /**
  * Validates the HTTP response. If a response is not valid (not 200), an exception is thrown and the transformation ends.
  */
-private static void validateResponse(int httpStatusCode, String httpMethod, URL url) {
-  int expectedStatusCode = 200
+private static void validateResponse(final int httpStatusCode, final String httpMethod, final URL url) {
+  final int expectedStatusCode = 200
   if (httpStatusCode != expectedStatusCode) {
     throw new IllegalStateException("'" + httpMethod + "' request on '" + url + "' returned status code: " + httpStatusCode + ". Expected: " + expectedStatusCode)
   }

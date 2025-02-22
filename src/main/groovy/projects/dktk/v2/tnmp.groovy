@@ -1,6 +1,5 @@
 package projects.dktk.v2
 
-
 import de.kairos.fhir.dsl.r4.execution.Fhir4Source
 import org.hl7.fhir.r4.model.Observation
 
@@ -12,8 +11,9 @@ import static de.kairos.fhir.centraxx.metamodel.RootEntities.tnm
  *  CCP-IT has decided on 2020-11-17 to use the TNMc profile only if all TNM prefixes are clinical.
  *  If only one prefix is not clinical (c) the profile TNMp is used, even if it is no prefix p (pathology), but e.g a (autopsy) or u (ultrasonic).
  *  Both profiles differ only in the loinc codes for Observation.code.coding.code and Observation.component:TNM-T/N/M.code.coding.code
+ *  Reference to focus condition has been added additionally, because a reverse reference is not possible yet.
  * @author Mike Wähnert
- * @since CXX.v.3.17.1.6, v.3.17.2
+ * @since CXX.v.3.18.1.21, CXX.v.3.18.2, kairos-fhir-dsl-1.13.0
  */
 observation {
 
@@ -45,12 +45,6 @@ observation {
     reference = "Patient/" + context.source[tnm().patientContainer().id()]
   }
 
-  if (context.source[tnm().episode()]) {
-    encounter {
-      reference = "Encounter/" + context.source[tnm().episode().id()]
-    }
-  }
-
   effectiveDateTime {
     date = normalizeDate(context.source[tnm().date()] as String)
   }
@@ -58,8 +52,9 @@ observation {
   if (context.source[tnm().stadium()]) {
     valueCodeableConcept {
       coding {
-        version = context.source[tnm().version()]
+        system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/UiccstadiumCS"
         code = (context.source[tnm().stadium()] as String).trim()
+        version = context.source[tnm().version()]
       }
     }
   }
@@ -70,9 +65,11 @@ observation {
       if (context.source[tnm().praefixTDict()]) {
         extension {
           url = "http://dktk.dkfz.de/fhir/StructureDefinition/onco-core-Extension-TNMcpuPraefix"
-          valueCoding {
-            system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMcpuPraefixTCS"
-            code = context.source[tnm().praefixTDict().code()] as String
+          valueCodeableConcept {
+            coding {
+              system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMcpuPraefixTCS"
+              code = context.source[tnm().praefixTDict().code()] as String
+            }
           }
         }
       }
@@ -97,21 +94,23 @@ observation {
       if (context.source[tnm().praefixNDict()]) {
         extension {
           url = "http://dktk.dkfz.de/fhir/StructureDefinition/onco-core-Extension-TNMcpuPraefix"
-          valueCoding {
-            system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMcpuPraefixTCS"
-            code = context.source[tnm().praefixNDict().code()] as String
+          valueCodeableConcept {
+            coding {
+              system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMcpuPraefixTCS"
+              code = context.source[tnm().praefixNDict().code()] as String
+            }
           }
         }
       }
       code {
         coding {
           system = "http://loinc.org"
-          code = isClinical ? "201906-3" : "21900-6"
+          code = isClinical ? "21906-3" : "21900-6"
         }
       }
       valueCodeableConcept {
         coding {
-          system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMTCS"
+          system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMNCS"
           code = (context.source[tnm().n()] as String).trim()
         }
       }
@@ -124,9 +123,11 @@ observation {
       if (context.source[tnm().praefixMDict()]) {
         extension {
           url = "http://dktk.dkfz.de/fhir/StructureDefinition/onco-core-Extension-TNMcpuPraefix"
-          valueCoding {
-            system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMcpuPraefixTCS"
-            code = context.source[tnm().praefixMDict().code()] as String
+          valueCodeableConcept {
+            coding {
+              system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMcpuPraefixTCS"
+              code = context.source[tnm().praefixMDict().code()] as String
+            }
           }
         }
       }
@@ -138,7 +139,7 @@ observation {
       }
       valueCodeableConcept {
         coding {
-          system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMTCS"
+          system = "http://dktk.dkfz.de/fhir/onco/core/CodeSystem/TNMMCS"
           code = (context.source[tnm().m()] as String).trim()
         }
       }
@@ -199,6 +200,12 @@ observation {
     }
   }
 
+  if (context.source[tnm().tumour()] && hasRelevantCode(context.source[tnm().tumour().centraxxDiagnosis().diagnosisCode()] as String)) {
+    focus {
+      reference = "Condition/" + context.source[tnm().tumour().centraxxDiagnosis().id()]
+    }
+  }
+
 }
 
 /**
@@ -216,4 +223,8 @@ static boolean isClinical(final Fhir4Source source) {
   final String prefixN = source[tnm().praefixNDict().code()]
   final String prefixM = source[tnm().praefixMDict().code()]
   return clinicalPrefix.equalsIgnoreCase(prefixT) && clinicalPrefix.equalsIgnoreCase(prefixN) && clinicalPrefix.equalsIgnoreCase(prefixM)
+}
+
+static boolean hasRelevantCode(final String icdCode) {
+  return icdCode != null && (icdCode.toUpperCase().startsWith('C') || icdCode.toUpperCase().startsWith('D'))
 }

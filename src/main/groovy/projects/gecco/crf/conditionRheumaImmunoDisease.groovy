@@ -45,7 +45,7 @@ condition {
       final def VERcode = matchResponseToVerificationStatus(item[CatalogEntry.CODE] as String)
       if (VERcode == "261665006") {
         extension {
-          url = "https://simplifier.net/forschungsnetzcovid-19/uncertaintyofpresence"
+          url = "https://www.netzwerk-universitaetsmedizin.de/fhir/StructureDefinition/uncertainty-of-presence"
           valueCodeableConcept {
             coding {
               system = "http://snomed.info/sct"
@@ -86,7 +86,7 @@ condition {
         final def ICDcode = matchResponseToICD(item[CatalogEntry.CODE] as String)
         if (ICDcode) {
           coding {
-            system = "http://fhir.de/CodeSystem/dimdi/icd-10-gm"
+            system = "http://fhir.de/CodeSystem/bfarm/icd-10-gm"
             version = "2020"
             code = ICDcode
           }
